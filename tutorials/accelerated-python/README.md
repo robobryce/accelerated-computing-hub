@@ -6,6 +6,7 @@ This modular tutorial contains content on all things related to accelerated Pyth
 - [Slides](./slides) containing the lecture content for the lessons.
 - [Syllabi](./notebooks/syllabi) that select a subset of the notebooks for a particular learning objective.
 - [Docker Images](https://github.com/NVIDIA/accelerated-computing-hub/pkgs/container/accelerated-python-tutorial) and [Docker Compose files](./brev/docker-compose.yml) for creating Brev Launchables or running locally.
+- [Modal deployment](./modal/README.md) with persistent Jupyter notebooks and authenticated WebRTC desktops for Nsight Systems and Nsight Compute.
 
 Brev Launchables of this tutorial should use:
 - L40S, L4, or T4 instances (for non-distributed notebooks other than CUDA Tile).
