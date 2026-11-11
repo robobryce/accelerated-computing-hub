@@ -25,8 +25,10 @@ STREAMER_IMAGES = {
 
 def image_for(kind):
     if kind == "jupyter":
-        image = modal.Image.from_registry(TUTORIAL_IMAGE).entrypoint([])
-        image = image.run_commands("cp -a /accelerated-computing-hub /opt/ach-source")
+        image = modal.Image.from_registry(TUTORIAL_IMAGE).entrypoint([]).workdir("/")
+        # Modal requires an empty volume mountpoint. Keep seed files elsewhere
+        # in the image, then initialize the volume after the sandbox starts.
+        image = image.run_commands("mv /accelerated-computing-hub /opt/ach-source", "mkdir /accelerated-computing-hub")
     else:
         image = modal.Image.from_registry(STREAMER_IMAGES[kind], add_python="3.12").entrypoint([])
     for name in ("runtime.py", "sync.py", "smoke.py"):
