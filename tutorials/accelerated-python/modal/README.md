@@ -62,6 +62,8 @@ kernels remain available. The launcher points them at the real profiler CLIs
 instead of the Docker Compose capability wrappers. CPU performance sampling and
 CPU context-switch tracing are disabled for Nsight Systems; CUDA/NVTX/OS runtime
 tracing remains enabled. Nsight Compute leaves GPU clocks unchanged.
+The full metric set can warn that CTC interconnect counters are unavailable;
+the verified kernel timing, memory, and compute metrics still collect.
 
 ## Persistence and shutdown
 
@@ -88,6 +90,8 @@ port is 443, the internal listener remains 3478, and Pion advertises the
 container's reachable relay address. The browser retains remote host candidates
 while forcing its own candidates through TURN. The patched JavaScript is cache
 busted.
+TURN passwords use hexadecimal because the bundled Pion server's credential
+parser truncates passwords containing hyphens.
 
 `python launch.py start --desktops-only --profile YOUR_MODAL_PROFILE` tests the
 desktops without allocating a GPU. It does not start Jupyter or collect profiles.

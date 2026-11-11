@@ -51,6 +51,16 @@ def test_report_bytes(server):
         assert response.read() == b"test report bytes"
 
 
+def test_canonical_volume_root(tmp_path, monkeypatch):
+    # Modal presents a volume mountpoint as an alias of /__modal/volumes/...
+    # Both sides of the containment check must use the canonical root.
+    (tmp_path / "mount").mkdir()
+    monkeypatch.setattr(sync, "ROOT", tmp_path / "mount" / "..")
+    assert sync.allowed_path("profile.nsys-rep") == tmp_path / "profile.nsys-rep"
+    with pytest.raises(ValueError):
+        sync.allowed_path("../outside.nsys-rep")
+
+
 @pytest.mark.parametrize("path", ["../outside.ncu-rep", "/etc/passwd", "private.txt", "missing.nsys-rep"])
 def test_reject_disallowed_files(server, path):
     with pytest.raises(HTTPError) as failure:

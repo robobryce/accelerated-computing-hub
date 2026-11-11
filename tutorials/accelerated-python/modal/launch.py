@@ -112,7 +112,9 @@ def start(args, state):
         else:
             password = secrets.token_urlsafe(24)
             env = {"WEB_USERNAME": "bryce", "WEB_PASSWORD": password,
-                   "TURN_USERNAME": "bryce", "TURN_PASSWORD": secrets.token_urlsafe(32),
+                   # The bundled Pion example parses passwords with \w+;
+                   # hexadecimal preserves all 256 bits without truncation.
+                   "TURN_USERNAME": "bryce", "TURN_PASSWORD": secrets.token_hex(32),
                    "SELKIES_TURN_HOST": tunnels[3478].tls_socket[0], "SELKIES_TURN_PORT": "443",
                    "SELKIES_TURN_TLS": "true", "TURN_PROTOCOL": "tcp", "TURN_PORT": "3478",
                    "HOST_IP": "0.0.0.0", "SELKIES_ADDR": "0.0.0.0", "HTTP_PORT": "8080",

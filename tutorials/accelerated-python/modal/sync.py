@@ -16,7 +16,7 @@ SUFFIXES = {".nsys-rep", ".ncu-rep", ".py", ".cu", ".cuh", ".ipynb"}
 
 def allowed_path(relative):
     path = (ROOT / relative).resolve()
-    if not path.is_relative_to(ROOT) or path.suffix not in SUFFIXES or ".git" in path.parts:
+    if not path.is_relative_to(ROOT.resolve()) or path.suffix not in SUFFIXES or ".git" in path.parts:
         raise ValueError("Invalid report path")
     return path
 
@@ -69,7 +69,9 @@ def follow():
         try:
             with urlopen(Request(base + "/index", headers=headers), timeout=30) as response:
                 current = json.load(response)
-            for name, version in current.items():
+            copied_this_poll = 0
+            ordered = sorted(current.items(), key=lambda item: (not item[0].endswith((".nsys-rep", ".ncu-rep")), item[0]))
+            for name, version in ordered:
                 # Require an unchanged size and mtime across two polls. Large
                 # report files are never installed in-place in a running GUI.
                 if previous.get(name) != version or copied.get(name) == version:
@@ -78,15 +80,22 @@ def follow():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 temp = target.with_name(target.name + ".downloading")
                 request = Request(base + "/file?path=" + quote(name, safe=""), headers=headers)
-                with urlopen(request, timeout=180) as response, temp.open("wb") as output:
-                    while block := response.read(1024 * 1024):
-                        output.write(block)
-                if temp.stat().st_size == version[0]:
-                    temp.replace(target)
-                    target.chmod(0o644)
-                    copied[name] = version
-                else:
+                try:
+                    with urlopen(request, timeout=180) as response, temp.open("wb") as output:
+                        while block := response.read(1024 * 1024):
+                            output.write(block)
+                    if temp.stat().st_size == version[0]:
+                        temp.replace(target)
+                        target.chmod(0o644)
+                        copied[name] = version
+                    else:
+                        temp.unlink(missing_ok=True)
+                except Exception as error:
                     temp.unlink(missing_ok=True)
+                    print(f"Retrying {name}: {type(error).__name__}", flush=True)
+                copied_this_poll += 1
+                if copied_this_poll >= 32:
+                    break
             previous = current
         except Exception as error:
             # Do not print request headers or bearer credentials.

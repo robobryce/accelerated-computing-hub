@@ -106,13 +106,9 @@ def start_jupyter(config):
             destination.symlink_to(os.environ[f"ACH_{name.upper()}_PATH"])
     os.environ["PATH"] = f"{wrappers}:" + os.environ["PATH"]
     os.environ["JUPYTER_TOKEN"] = config["token"]
-    # Explicitly disable CPU perf sampling; CUDA/NVTX tracing is independent.
-    spec = Path("/usr/local/share/jupyter/kernels/nsightful-nsys/kernel.json")
-    if spec.exists():
-        data = json.loads(spec.read_text())
-        separator = data["argv"].index("--")
-        data["argv"][separator:separator] = ["--sample=none", "--cpuctxsw=none"]
-        spec.write_text(json.dumps(data, indent=2) + "\n")
+    # Keep the Nsightful kernelspec intact: it uses `nsys launch`, which does
+    # not accept sampling flags. Its %%nsys magic already disables CPU sample
+    # and context-switch collection on the subsequent `nsys start` command.
     config_path = Path("/tmp/jupyter-modal.py")
     config_path.write_text(
         "import os\n"
