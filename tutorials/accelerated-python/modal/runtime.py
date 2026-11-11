@@ -40,6 +40,32 @@ def patch_streamer():
     path.write_text(text.replace(old, "if (false /* Modal: accept remote host candidates */)"))
     path = Path("/opt/gst-web/index.html")
     path.write_text(re.sub(r"webrtc\.js\?ts=[^\"']+", "webrtc.js?ts=modal-relay-v2", path.read_text()))
+    patch_hidden_tabs()
+
+
+def patch_hidden_tabs():
+    """Jupyter restores inactive iframe tabs with zero-sized viewports."""
+    paths = list(Path('/usr/local/lib').glob('python*/dist-packages/selkies_gstreamer/__main__.py'))
+    if len(paths) != 1:
+        raise RuntimeError('Expected one installed NVIDIA Selkies server')
+    path = paths[0]
+    text = path.read_text()
+    marker = '    def on_resize_handler(res):\n'
+    guard = (
+        '        # Modal: a hidden Jupyter tab has no usable display size.\n'
+        '        if any(int(size) <= 0 for size in res.split("x")):\n'
+        '            return\n'
+    )
+    if guard not in text:
+        if text.count(marker) != 1:
+            raise RuntimeError('Unsupported Streamer resize handler')
+        path.write_text(text.replace(marker, marker + guard))
+    path = Path('/etc/webrtc/supervisord.conf')
+    text = path.read_text()
+    before, section = text.split('[program:selkies]', 1)
+    section, after = section.split('[program:turnserver]', 1)
+    section = section.replace('autorestart=false', 'autorestart=true')
+    path.write_text(before + '[program:selkies]' + section + '[program:turnserver]' + after)
 
 
 def start_streamer(config):

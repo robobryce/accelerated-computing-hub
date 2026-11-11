@@ -105,6 +105,11 @@ busted.
 TURN passwords use hexadecimal because the bundled Pion server's credential
 parser truncates passwords containing hyphens.
 
+The streamer ignores zero-size resize requests from Jupyter's inactive iframe
+tabs. Without this guard, restoring a workspace can terminate Selkies with a
+division-by-zero error and leave a launcher showing HTTP 599. Supervisor also
+restarts the WebRTC service if it exits; the profiler application stays running.
+
 `python launch.py start --desktops-only --profile YOUR_MODAL_PROFILE` tests the
 desktops without allocating a GPU. It does not start Jupyter or collect profiles.
 Use a separate `--state` file for diagnostic sessions.
