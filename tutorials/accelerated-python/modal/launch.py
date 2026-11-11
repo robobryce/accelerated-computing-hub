@@ -11,8 +11,6 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-import modal
-
 HERE = Path(__file__).resolve().parent
 ROOT = "/accelerated-computing-hub"
 APP = "accelerated-python"
@@ -24,6 +22,7 @@ STREAMER_IMAGES = {
 
 
 def image_for(kind):
+    import modal
     if kind == "jupyter":
         image = modal.Image.from_registry(TUTORIAL_IMAGE).entrypoint([]).workdir("/")
         # Modal requires an empty volume mountpoint. Keep seed files elsewhere
@@ -40,8 +39,10 @@ def image_for(kind):
 
 def save(path, state):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, indent=2) + "\n")
-    path.chmod(0o600)
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(state, indent=2) + "\n")
+    temporary.chmod(0o600)
+    temporary.replace(path)
 
 
 def bootstrap(sandbox, kind, config):
@@ -69,8 +70,10 @@ def wait_http(url, headers=None):
 
 def start(args, state):
     import base64
+    import modal
     app = modal.App.lookup(APP, create_if_missing=True)
     if not state.get("services"):
+        state.clear()
         state.update({"profile": os.environ.get("MODAL_PROFILE", "active"), "app_id": app.app_id,
                       "expires_at": (datetime.now(timezone.utc) + timedelta(hours=args.hours)).isoformat(),
                       "services": {}})
@@ -137,6 +140,9 @@ def main():
     args = parser.parse_args()
     if args.profile:
         os.environ["MODAL_PROFILE"] = args.profile
+    # Modal reads its profile when imported. Import only after applying the
+    # explicit selection so an unrelated active workspace is never used.
+    import modal
     state = json.loads(args.state.read_text()) if args.state.exists() else {}
     if state.get("profile") not in (None, "active", os.environ.get("MODAL_PROFILE")):
         parser.error("Session belongs to a different Modal profile; pass --profile explicitly")
