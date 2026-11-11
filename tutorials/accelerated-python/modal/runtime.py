@@ -66,6 +66,39 @@ def patch_hidden_tabs():
     section, after = section.split('[program:turnserver]', 1)
     section = section.replace('autorestart=false', 'autorestart=true')
     path.write_text(before + '[program:selkies]' + section + '[program:turnserver]' + after)
+    patch_stream_input()
+
+
+def patch_stream_input():
+    """Recompute pointer geometry after Jupyter reveals an inactive iframe."""
+    path = Path('/opt/gst-web/input.js')
+    text = path.read_text()
+    marker = '    _mouseButtonMovement(event) {\n'
+    refresh = (
+        '        // Modal: iframe visibility can change without a video resize event.\n'
+        '        this._windowMath();\n'
+        '        if (!this.m) return;\n'
+    )
+    if refresh not in text:
+        if text.count(marker) != 1:
+            raise RuntimeError('Unsupported Streamer pointer handler')
+        text = text.replace(marker, marker + refresh)
+        # A button event may be the first input after revealing the iframe.
+        old = "        } else if (event.type === 'mousemove') {\n"
+        if text.count(old) != 1:
+            raise RuntimeError('Unsupported Streamer pointer coordinate branch')
+        text = text.replace(old, '        } else {\n')
+        marker = '        const frameH = this.element.videoHeight;\n'
+        if text.count(marker) != 1:
+            raise RuntimeError('Unsupported Streamer video geometry')
+        text = text.replace(marker, marker +
+            '        if (!(windowW > 0 && windowH > 0 && frameW > 0 && frameH > 0)) return;\n')
+        path.write_text(text)
+    path = Path('/opt/gst-web/index.html')
+    html, count = re.subn(r'input\.js(?:\?ts=[^\"\']+)?', 'input.js?ts=modal-input-v1', path.read_text())
+    if count != 1:
+        raise RuntimeError('Unsupported Streamer input script reference')
+    path.write_text(html)
 
 
 def start_streamer(config):

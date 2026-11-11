@@ -109,6 +109,9 @@ The streamer ignores zero-size resize requests from Jupyter's inactive iframe
 tabs. Without this guard, restoring a workspace can terminate Selkies with a
 division-by-zero error and leave a launcher showing HTTP 599. Supervisor also
 restarts the WebRTC service if it exits; the profiler application stays running.
+Pointer coordinates are recalculated when input arrives, so revealing a hidden
+tab or receiving the first video frame cannot leave mouse input using stale
+zero-size geometry. The client script is cache busted when this patch changes.
 
 `python launch.py start --desktops-only --profile YOUR_MODAL_PROFILE` tests the
 desktops without allocating a GPU. It does not start Jupyter or collect profiles.
@@ -128,6 +131,16 @@ The report service's authentication and file boundary tests can be run locally:
 python -m pip install pytest
 python -m pytest -q test_sync.py
 ```
+
+The pointer regression test runs against `/opt/gst-web/input.js` copied from
+either patched desktop image, using Node.js:
+
+```console
+node test_stream_input.cjs path/to/input.js
+```
+
+It covers hidden-to-visible iframes, first clicks after resizing, delayed video
+frames, and the existing relative-pointer mode.
 
 References: [Modal Sandbox networking](https://modal.com/docs/guide/sandbox-networking),
 [Modal Volumes](https://modal.com/docs/guide/volumes), and
