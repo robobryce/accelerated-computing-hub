@@ -30,7 +30,7 @@ def image_for(kind):
         image = image.run_commands("mv /accelerated-computing-hub /opt/ach-source", "mkdir /accelerated-computing-hub")
     else:
         image = modal.Image.from_registry(STREAMER_IMAGES[kind], add_python="3.12").entrypoint([])
-    for name in ("runtime.py", "sync.py", "smoke.py"):
+    for name in ("runtime.py", "sync.py", "smoke.py", "jupyter_launchers.py"):
         image = image.add_local_file(HERE / name, "/opt/modal-tutorial/" + name, copy=True)
     if kind != "jupyter":
         image = image.run_commands("python /opt/modal-tutorial/runtime.py patch-streamer")
@@ -107,7 +107,7 @@ def start(args, state):
             report_config = {"report_token": secrets.token_urlsafe(32), "report_url": tunnels[8899].url}
             state["report_sync"] = report_config
             bootstrap(sandbox, "jupyter", {"token": token, "source_image": TUTORIAL_IMAGE, **report_config})
-            service["url"] = tunnels[8888].url + "/lab?token=" + token
+            service["url"] = tunnels[8888].url + "/lab/tree/accelerated-computing-hub/tutorials/accelerated-python/notebooks/start.ipynb?token=" + token
             wait_http(tunnels[8888].url + "/api", {"Authorization": "token " + token})
         else:
             password = secrets.token_urlsafe(24)
@@ -126,6 +126,9 @@ def start(args, state):
             wait_http(service["url"], {"Authorization": "Basic " + basic})
         save(args.state, state)
         print(f"{kind} ready: {service['url'].split('?')[0]}", flush=True)
+    if not args.desktops_only:
+        sandbox = modal.Sandbox.from_id(state["services"]["jupyter"]["sandbox_id"])
+        bootstrap(sandbox, "launchers", {name: state["services"][name] for name in ("nsys", "ncu")})
     print(f"Session credentials saved to {args.state.resolve()}")
     print("Run 'check' to test CUDA and collect both real profiler reports.")
 

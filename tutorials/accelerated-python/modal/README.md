@@ -5,6 +5,15 @@ Systems and Nsight Compute desktops in two CPU Sandboxes. All three use
 authenticated HTTPS endpoints. The desktops use WebRTC with TURN over TLS on
 port 443, so no public UDP ports or local TURN server are required.
 
+Jupyter runs the image's original `brev/entrypoint.bash jupyter` startup and
+loads its original `brev/jupyter-server-config.py`. Its launcher entries,
+embedded desktop tabs, icons, theme settings, execution timing, IPython startup,
+logging, extensions, and kernel specifications are retained. A separate Modal
+configuration layer adds only a Jupyter authentication token and upstream
+desktop authentication headers. Local TLS bridges replace Compose networking.
+The upstream-supported `ACH_USER=root` setting enables profiling in the Modal
+sandbox without the Compose capability wrappers.
+
 ## Start a session
 
 Use Python 3.10 or newer on your computer. From this directory:
@@ -22,9 +31,12 @@ minutes. GPU allocation can also take time.
 
 The launcher writes `.modal-session.json` containing the Jupyter token URL,
 desktop URLs and login credentials, sandbox IDs, and expiration time. Keep this
-file private. Open the Jupyter URL and log into each desktop using its saved
-username and password. Use the clean desktop URL; putting Basic Auth credentials
-in the URL can break the streamer's browser requests.
+file private. Open the Jupyter URL, click **+** to open the Launcher, then select
+**Nsight Systems** or **Nsight Compute** under **Console**. Both desktops open
+inside JupyterLab and use your authenticated Jupyter session; no separate login
+is needed for these embedded tabs. The saved standalone desktop URLs also work
+with their saved usernames and passwords. Use clean standalone URLs; putting
+Basic Auth credentials in the URL can break the streamer's browser requests.
 
 A10 supports the single-GPU CuPy, CUDA Python, CUDA Tile, and profiler lessons
 in the pinned tutorial. `--gpu B200` selects Blackwell hardware when needed.

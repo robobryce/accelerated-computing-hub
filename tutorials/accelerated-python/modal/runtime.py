@@ -7,8 +7,10 @@ import re
 import shlex
 import shutil
 import socket
+import signal
 import subprocess
 import sys
+from urllib.parse import urlsplit
 
 ROOT = Path("/accelerated-computing-hub")
 NOTEBOOKS = ROOT / "tutorials/accelerated-python/notebooks"
@@ -77,6 +79,37 @@ def start_sync(mode, config):
     )
 
 
+def configure_launchers(desktops):
+    from jupyter_launchers import DESKTOPS, SERVICES
+    temporary = DESKTOPS.with_suffix(".tmp")
+    temporary.write_text(json.dumps(desktops))
+    temporary.chmod(0o600)
+    temporary.replace(DESKTOPS)
+    for name, port in SERVICES.items():
+        url = urlsplit(desktops[name]["url"])
+        if url.scheme != "https" or not url.hostname.endswith(".modal.host"):
+            raise ValueError("Expected an HTTPS Modal desktop tunnel")
+        command = ["socat", f"TCP-LISTEN:{port},bind=127.0.0.1,reuseaddr,fork",
+                   f"OPENSSL:{url.hostname}:443,snihost={url.hostname},verify=1,cafile=/etc/ssl/certs/ca-certificates.crt"]
+        pid_file = Path(f"/tmp/modal-{name}-bridge.json")
+        if pid_file.exists():
+            previous = json.loads(pid_file.read_text())
+            try:
+                running = Path(f"/proc/{previous['pid']}/cmdline").read_bytes().decode().rstrip("\0").split("\0")
+                if running == command:
+                    continue
+                if running == previous["command"]:
+                    os.kill(previous["pid"], signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            except FileNotFoundError:
+                pass
+        process = subprocess.Popen(command, stdin=subprocess.DEVNULL,
+                                   stdout=Path(f"/tmp/modal-{name}-bridge.log").open("w"),
+                                   stderr=subprocess.STDOUT, start_new_session=True)
+        pid_file.write_text(json.dumps({"pid": process.pid, "command": command}))
+
+
 def start_jupyter(config):
     """Initialize the persistent checkout once; never overwrite student work."""
     source = Path("/opt/ach-source")
@@ -109,20 +142,26 @@ def start_jupyter(config):
     # Keep the Nsightful kernelspec intact: it uses `nsys launch`, which does
     # not accept sampling flags. Its %%nsys magic already disables CPU sample
     # and context-switch collection on the subsequent `nsys start` command.
-    config_path = Path("/tmp/jupyter-modal.py")
+    # Run the actual tutorial entrypoint. It installs its server-config and
+    # IPython links and generates all tutorial JupyterLab user settings.
+    # Modal profiling requires root; this is an upstream-supported ACH_USER.
+    os.environ["ACH_USER"] = "root"
+    overlay = Path("/opt/modal-jupyter")
+    overlay.mkdir(exist_ok=True)
+    os.environ["JUPYTER_CONFIG_PATH"] = str(overlay)
+    config_path = overlay / "jupyter_server_config.py"
     config_path.write_text(
         "import os\n"
+        "import sys\n"
+        "sys.path.insert(0, '/opt/modal-tutorial')\n"
+        "from jupyter_launchers import servers\n"
+        "load_subconfig('/accelerated-computing-hub/brev/jupyter-server-config.py')\n"
         "c = get_config()\n"
-        "c.ServerApp.ip = '0.0.0.0'\n"
-        "c.ServerApp.port = 8888\n"
-        "c.ServerApp.allow_root = True\n"
-        "c.ServerApp.open_browser = False\n"
-        "c.ServerApp.root_dir = '/accelerated-computing-hub'\n"
-        "c.ServerApp.preferred_dir = '/accelerated-computing-hub/tutorials/accelerated-python/notebooks'\n"
+        "c.ServerProxy.servers = servers(c.ServerProxy.servers)\n"
         "c.IdentityProvider.token = os.environ['JUPYTER_TOKEN']\n"
     )
     subprocess.Popen(
-        ["python", "-m", "jupyter", "lab", "--config", str(config_path)],
+        [str(ROOT / "brev/entrypoint.bash"), "jupyter"],
         stdin=subprocess.DEVNULL,
         stdout=Path("/tmp/jupyter.log").open("w"),
         stderr=subprocess.STDOUT,
@@ -136,7 +175,8 @@ def main():
         patch_streamer()
         return
     config = json.load(sys.stdin)
-    {"jupyter": start_jupyter, "streamer": start_streamer}[sys.argv[1]](config)
+    {"jupyter": start_jupyter, "streamer": start_streamer,
+     "launchers": configure_launchers}[sys.argv[1]](config)
 
 
 if __name__ == "__main__":
